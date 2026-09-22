@@ -64,14 +64,10 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH_MB * 1024 * 1024
 # 2. Store files in shared S3 / Cloudflare R2 object storage or an attached shared volume
 #    rather than local ephemeral temp directories.
 # ------------------------------------------------------------------------------
-SESSIONS = {}
-sessions_lock = threading.Lock()
-
 def get_local_ip():
     """Detect LAN IP address for QR code and local network access."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        # Does not actually create an external connection, used to select local interface
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
     except Exception:
@@ -81,13 +77,7 @@ def get_local_ip():
     return ip
 
 def get_session_url(session_id):
-    """Constructs the full shareable URL for a session.
-    
-    1. In production, if PUBLIC_BASE_URL is explicitly set, uses it.
-    2. Otherwise, automatically detects the public host and scheme from the incoming
-       HTTP request headers (Render, Railway, reverse proxies, or custom domains).
-    3. If accessed locally via localhost / 127.0.0.1, falls back to LAN IP detection.
-    """
+    """Constructs the full shareable URL for a session."""
     if PUBLIC_BASE_URL:
         return f"{PUBLIC_BASE_URL}/s/{session_id}"
 
@@ -98,7 +88,6 @@ def get_session_url(session_id):
             host = (request.headers.get("X-Forwarded-Host") or request.host or "").strip()
             if host:
                 host_name = host.split(":")[0].strip().lower()
-                # If accessed via a real domain or network address (not loopback), use it directly
                 if host_name not in ("localhost", "127.0.0.1", "0.0.0.0"):
                     return f"{proto}://{host}/s/{session_id}"
     except Exception:
@@ -127,88 +116,199 @@ def is_safe_path(base_dir, path, follow_symlinks=True):
     return basepath == os.path.commonpath((basepath, matchpath))
 
 # ------------------------------------------------------------------------------
-# Session Management Functions
+# Session Manager & In-Memory Capability Registry
 # ------------------------------------------------------------------------------
-def create_session():
-    """Creates a new isolated session with its own temp folder and capability tokens."""
-    session_id = uuid.uuid4().hex
-    temp_dir = tempfile.mkdtemp(prefix=f"session_{session_id[:8]}_")
-    now = time.time()
-    expires_at = now + (SESSION_TIMEOUT_MINUTES * 60)
-    csrf_token = secrets.token_hex(16)
-    pin = f"{secrets.randbelow(9000) + 1000}" if ENABLE_SESSION_PIN else None
+JOIN_CODE_CHARS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"  # Omits 0, O, 1, I, L
 
-    session_data = {
-        "id": session_id,
-        "folder": temp_dir,
-        "created_at": now,
-        "expires_at": expires_at,
-        "csrf_token": csrf_token,
-        "pin": pin,
-        "files": {},  # file_id -> file_meta
-        "verified_pins": set()  # Client IPs or tokens that passed PIN check
-    }
+class SessionManager:
+    """Manages ephemeral transfer sessions, isolated storage folders, and join codes."""
+    _sessions = {}
+    _code_to_session = {}
+    _lock = threading.RLock()
 
-    with sessions_lock:
-        SESSIONS[session_id] = session_data
+    @classmethod
+    def _cleanup_dir(cls, folder_path):
+        """Safely removes a session temporary folder from disk."""
+        if not folder_path or not os.path.exists(folder_path):
+            return
 
-    return session_data
+        def handle_remove_readonly(func, path, exc_info):
+            import stat
+            try:
+                os.chmod(path, stat.S_IWRITE)
+                func(path)
+            except Exception:
+                pass
 
-def get_session(session_id):
-    """Retrieves session by ID if it exists and has not expired."""
-    now = time.time()
-    with sessions_lock:
-        session_data = SESSIONS.get(session_id)
-        if not session_data:
-            return None
-
-        # Clamp existing session lifetime to at most SESSION_TIMEOUT_MINUTES (5 min) unless explicitly extended
-        max_remaining = SESSION_TIMEOUT_MINUTES * 60
-        if not session_data.get("extended", False):
-            if session_data["expires_at"] > now + max_remaining:
-                session_data["expires_at"] = now + max_remaining
-
-        if now > session_data["expires_at"]:
-            # Session expired, delete folder and entry
-            _cleanup_session_dir(session_data["folder"])
-            del SESSIONS[session_id]
-            return None
-        return session_data
-
-def _cleanup_session_dir(folder_path):
-    """Safely removes a session temporary folder from disk."""
-    if not folder_path or not os.path.exists(folder_path):
-        return
-
-    def handle_remove_readonly(func, path, exc_info):
-        import stat
-        try:
-            os.chmod(path, stat.S_IWRITE)
-            func(path)
-        except Exception:
-            pass
-
-    for attempt in range(3):
-        try:
+        for attempt in range(3):
+            try:
+                if not os.path.exists(folder_path):
+                    break
+                shutil.rmtree(folder_path, onexc=handle_remove_readonly)
+            except TypeError:
+                shutil.rmtree(folder_path, onerror=handle_remove_readonly)
+            except Exception:
+                shutil.rmtree(folder_path, ignore_errors=True)
             if not os.path.exists(folder_path):
                 break
-            shutil.rmtree(folder_path, onexc=handle_remove_readonly)
-        except TypeError:
-            shutil.rmtree(folder_path, onerror=handle_remove_readonly)
-        except Exception:
-            shutil.rmtree(folder_path, ignore_errors=True)
-        if not os.path.exists(folder_path):
-            break
-        time.sleep(0.05)
+            time.sleep(0.05)
 
-def terminate_session(session_id):
-    """Immediately ends a session and deletes its files."""
-    with sessions_lock:
-        session_data = SESSIONS.pop(session_id, None)
-    if session_data:
-        _cleanup_session_dir(session_data["folder"])
+    @classmethod
+    def generate_short_code(cls):
+        """Generates a collision-free 6-character short code formatted as XXX-XXX."""
+        while True:
+            raw = "".join(secrets.choice(JOIN_CODE_CHARS) for _ in range(6))
+            if raw not in cls._code_to_session:
+                formatted = f"{raw[:3]}-{raw[3:]}"
+                return raw, formatted
+
+    @classmethod
+    def create_session(cls):
+        """Creates a new isolated session with unique capability UUID and short code."""
+        session_id = uuid.uuid4().hex
+        temp_dir = tempfile.mkdtemp(prefix=f"session_{session_id[:8]}_")
+        now = time.time()
+        expires_at = now + (SESSION_TIMEOUT_MINUTES * 60)
+        csrf_token = secrets.token_hex(16)
+        pin = f"{secrets.randbelow(9000) + 1000}" if ENABLE_SESSION_PIN else None
+
+        with cls._lock:
+            code_raw, short_code = cls.generate_short_code()
+            session_data = {
+                "id": session_id,
+                "short_code": short_code,
+                "short_code_raw": code_raw,
+                "folder": temp_dir,
+                "created_at": now,
+                "expires_at": expires_at,
+                "csrf_token": csrf_token,
+                "pin": pin,
+                "files": {},  # file_id -> file_meta
+                "verified_pins": set()  # Client IPs or tokens that passed PIN check
+            }
+            cls._sessions[session_id] = session_data
+            cls._code_to_session[code_raw] = session_id
+
+        return session_data
+
+    @classmethod
+    def get_session(cls, session_id):
+        """Retrieves session by ID if it exists and has not expired."""
+        now = time.time()
+        with cls._lock:
+            session_data = cls._sessions.get(session_id)
+            if not session_data:
+                return None
+
+            max_remaining = SESSION_TIMEOUT_MINUTES * 60
+            if not session_data.get("extended", False):
+                if session_data["expires_at"] > now + max_remaining:
+                    session_data["expires_at"] = now + max_remaining
+
+            if now > session_data["expires_at"]:
+                # Expired - clean up folder and registry indices
+                cls._cleanup_dir(session_data["folder"])
+                cls._sessions.pop(session_id, None)
+                cls._code_to_session.pop(session_data.get("short_code_raw"), None)
+                return None
+
+            return session_data
+
+    @classmethod
+    def get_session_by_code(cls, code):
+        """Retrieves active session by human-typable short code (case/dash insensitive)."""
+        if not code:
+            return None
+        clean_code = "".join(c for c in str(code).upper() if c.isalnum())
+        if len(clean_code) != 6:
+            return None
+
+        with cls._lock:
+            session_id = cls._code_to_session.get(clean_code)
+            if not session_id:
+                return None
+            return cls.get_session(session_id)
+
+    @classmethod
+    def terminate_session(cls, session_id):
+        """Immediately ends a session, removes indices, and purges files."""
+        with cls._lock:
+            session_data = cls._sessions.pop(session_id, None)
+            if session_data:
+                cls._code_to_session.pop(session_data.get("short_code_raw"), None)
+        if session_data:
+            cls._cleanup_dir(session_data["folder"])
+            return True
+        return False
+
+    @classmethod
+    def sweep_expired(cls):
+        """Sweeps expired sessions from registry and disk."""
+        now = time.time()
+        expired_folders = []
+        with cls._lock:
+            max_lifetime = SESSION_TIMEOUT_MINUTES * 60
+            for sid, s in list(cls._sessions.items()):
+                if not s.get("extended", False) and s["expires_at"] > now + max_lifetime:
+                    s["expires_at"] = now + max_lifetime
+
+            expired_ids = [
+                sid for sid, s in cls._sessions.items()
+                if now > s["expires_at"]
+            ]
+            for sid in expired_ids:
+                s = cls._sessions.pop(sid)
+                cls._code_to_session.pop(s.get("short_code_raw"), None)
+                expired_folders.append(s["folder"])
+
+        for folder in expired_folders:
+            cls._cleanup_dir(folder)
+
+    @classmethod
+    def cleanup_all(cls):
+        """Removes all active session directories and clears registries on shutdown."""
+        with cls._lock:
+            for sid, s in cls._sessions.items():
+                cls._cleanup_dir(s.get("folder"))
+            cls._sessions.clear()
+            cls._code_to_session.clear()
+
+    @classmethod
+    def active_count(cls):
+        """Returns the count of currently active sessions."""
+        now = time.time()
+        with cls._lock:
+            return sum(1 for s in cls._sessions.values() if now <= s["expires_at"])
+
+
+# Backward compatibility aliases
+SESSIONS = SessionManager._sessions
+CODE_TO_SESSION = SessionManager._code_to_session
+sessions_lock = SessionManager._lock
+create_session = SessionManager.create_session
+get_session = SessionManager.get_session
+terminate_session = SessionManager.terminate_session
+_cleanup_session_dir = SessionManager._cleanup_dir
+
+# ------------------------------------------------------------------------------
+# Rate Limiter for /join Attempts (10 attempts / minute per IP)
+# ------------------------------------------------------------------------------
+JOIN_RATE_LIMIT = 10
+JOIN_RATE_WINDOW = 60
+JOIN_ATTEMPTS = {}
+join_rate_lock = threading.Lock()
+
+def check_join_rate_limit(client_ip):
+    now = time.time()
+    with join_rate_lock:
+        timestamps = JOIN_ATTEMPTS.get(client_ip, [])
+        timestamps = [t for t in timestamps if now - t < JOIN_RATE_WINDOW]
+        if len(timestamps) >= JOIN_RATE_LIMIT:
+            JOIN_ATTEMPTS[client_ip] = timestamps
+            return False
+        timestamps.append(now)
+        JOIN_ATTEMPTS[client_ip] = timestamps
         return True
-    return False
 
 # ------------------------------------------------------------------------------
 # Background Session Sweeper & Server Cleanup
@@ -218,34 +318,13 @@ def sweep_expired_sessions():
     while True:
         try:
             time.sleep(30)
-            now = time.time()
-            expired_folders = []
-            with sessions_lock:
-                # Clamp unextended sessions to at most SESSION_TIMEOUT_MINUTES (5 min)
-                max_lifetime = SESSION_TIMEOUT_MINUTES * 60
-                for sid, s in SESSIONS.items():
-                    if not s.get("extended", False) and s["expires_at"] > now + max_lifetime:
-                        s["expires_at"] = now + max_lifetime
-
-                expired_ids = [
-                    sid for sid, s in SESSIONS.items()
-                    if now > s["expires_at"]
-                ]
-                for sid in expired_ids:
-                    expired_folders.append(SESSIONS[sid]["folder"])
-                    del SESSIONS[sid]
-
-            for folder in expired_folders:
-                _cleanup_session_dir(folder)
+            SessionManager.sweep_expired()
         except Exception as e:
             app.logger.warning(f"Error in session sweeper thread: {e}")
 
 def cleanup_all_sessions():
     """Executed on server shutdown to remove all active session directories."""
-    with sessions_lock:
-        for sid, s in SESSIONS.items():
-            _cleanup_session_dir(s.get("folder"))
-        SESSIONS.clear()
+    SessionManager.cleanup_all()
 
 # Register atexit cleanup BEFORE starting application execution
 atexit.register(cleanup_all_sessions)
@@ -278,9 +357,52 @@ def request_entity_too_large(error):
 
 @app.route("/")
 def index():
-    """Root route creates a new isolated session and redirects to its dedicated URL."""
-    session_data = create_session()
+    """Landing page with 'Start New Transfer' and 'Join a Session' options."""
+    return render_template("index.html")
+
+@app.route("/new", methods=["GET", "POST"])
+def new_transfer():
+    """Explicitly spins up a fresh session with its own ID, QR code, and short code."""
+    session_data = SessionManager.create_session()
     return redirect(url_for("session_view", session_id=session_data["id"]))
+
+@app.route("/join", methods=["GET", "POST"])
+def join_session():
+    """Allows joining an active session via human-typable 6-character short code."""
+    if request.method == "GET":
+        return redirect(url_for("index"))
+
+    client_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "127.0.0.1").split(",")[0].strip()
+
+    if not check_join_rate_limit(client_ip):
+        rate_error = "Too many join attempts. Please wait a minute and try again."
+        if request.is_json:
+            return jsonify({"error": rate_error}), 429
+        return render_template("index.html", error=rate_error), 429
+
+    data = request.get_json(silent=True) or request.form
+    raw_code = (data.get("code") or "").strip()
+
+    session_data = SessionManager.get_session_by_code(raw_code)
+
+    if session_data:
+        dest_url = url_for("session_view", session_id=session_data["id"])
+        if request.is_json:
+            return jsonify({"success": True, "redirect": dest_url}), 200
+        return redirect(dest_url, code=302)
+
+    error_msg = "No active session with that code — check for typos, or ask the sender for a new one."
+    if request.is_json:
+        return jsonify({"error": error_msg}), 400
+    return render_template("index.html", error=error_msg, entered_code=raw_code), 400
+
+@app.route("/healthz")
+def healthz():
+    """Health check liveness probe for Render / Railway platform monitoring."""
+    return jsonify({
+        "status": "ok",
+        "active_sessions": SessionManager.active_count()
+    }), 200
 
 @app.route("/favicon.ico")
 def favicon():
@@ -290,7 +412,7 @@ def favicon():
 @app.route("/s/<session_id>")
 def session_view(session_id):
     """Renders the transfer interface for a specific isolated session."""
-    session_data = get_session(session_id)
+    session_data = SessionManager.get_session(session_id)
     if not session_data:
         return render_template("expired.html"), 404
 
@@ -305,6 +427,7 @@ def session_view(session_id):
     return render_template(
         "session.html",
         session_id=session_id,
+        short_code=session_data["short_code"],
         session_url=session_url,
         csrf_token=session_data["csrf_token"],
         pin=session_data.get("pin"),
@@ -366,6 +489,7 @@ def session_files(session_id):
 
     return jsonify({
         "session_id": session_id,
+        "short_code": session_data["short_code"],
         "remaining_seconds": remaining_seconds,
         "expires_at": session_data["expires_at"],
         "files": list(session_data["files"].values())

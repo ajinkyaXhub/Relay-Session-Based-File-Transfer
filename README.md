@@ -7,15 +7,19 @@ Relay is a secure, ephemeral peer-to-peer file transfer web app built with Flask
 ## Key Features & Architecture
 
 - **Per-Transfer Session Isolation:** Each transfer creates a unique session with a UUID4 capability token and dedicated temporary folder (`tempfile.mkdtemp`). No shared global upload folder, and no cross-device data leaks.
+- **Short 6-Character Join Codes (Laptop-to-Laptop Usability):** In addition to QR scanning, each session generates a human-typable 6-character code (`XXX-XXX`) using unambiguous alphanumeric characters (omitting `0`, `O`, `1`, `I`, `L`). Users on laptops or desktops can join transfers instantly by entering the code without requiring a camera.
+- **Dual-Action Landing Page:** Visiting `/` provides two frictionless choices: "Start a Transfer" (spins up a fresh isolated session via `/new`) or "Join a Transfer" (enters code with auto-formatting and client-side validation).
+- **Rate-Limited Join Endpoint:** `POST /join` protects against brute-force guessing with per-IP rate limiting (10 attempts/minute) and uniform error responses without leaking whether a code once existed.
 - **Dynamic In-Memory QR Codes:** QR codes encode the complete session URL and are rendered on the fly in memory (`/s/<session_id>/qr.png`), preventing race conditions and static file conflicts.
 - **Public & Local URL Detection:** Supports `PUBLIC_BASE_URL` for cloud deployments (Render, Railway), seamlessly falling back to LAN IP detection (`http://<lan-ip>:5000`) for local Wi-Fi transfers.
 - **Real-Time Live Updates:** Client interfaces poll `/s/<session_id>/files` every 2.5 seconds, immediately showing incoming files on all connected devices without full page refreshes.
 - **Drag-and-Drop with Progress Bars:** Smooth multi-file upload queue powered by `XMLHttpRequest` featuring real-time upload percentage, file sizes, and animated progress bars.
 - **Automatic & Manual Session Cleanup:**
-  - Background sweeper thread periodically (every 30s) prunes expired sessions and removes their directories from disk.
+  - Background sweeper thread periodically (every 30s) prunes expired sessions and removes their directories from disk and memory registries.
   - An `atexit` hook guarantees all active session directories are purged upon server shutdown.
   - "End Session" button allows users to immediately wipe files from disk on demand.
   - Live countdown timer with "+5 Mins" extension capability.
+- **Platform Health Monitoring:** `/healthz` endpoint returning HTTP 200 with JSON active session count for container liveness probes.
 - **Safe Single & Batch Downloads:**
   - Individual downloads preserve original filenames and prevent path traversal.
   - "Download All (.zip)" builds an archive outside the session folder (via in-memory buffer) so it never pollutes the upload directory.
@@ -143,8 +147,41 @@ python app.py --port 8080 --host 0.0.0.0
 ```
 
 ### 3. Using the App
-1. Open the local link in your browser: `http://127.0.0.1:5000` (or your public Render/Railway URL).
-2. Scan the displayed QR code with your mobile camera.
-3. Drag and drop or browse files on either device.
-4. Watch files appear in real-time on both screens!
-5. Click **Download** or **Download All (.zip)** to save files.
+
+#### A. Phone-to-Laptop Transfer (QR Code)
+1. Open the app in your browser: `http://127.0.0.1:5000` (or your public Render/Railway URL).
+2. Click **Start a Transfer** to generate a session with its own QR code.
+3. Scan the displayed QR code with your mobile camera.
+4. Drag and drop or browse files on either device.
+5. Files appear in real time on both devices!
+
+#### B. Laptop-to-Laptop Transfer (Short 6-Char Join Code)
+1. On **Computer 1** (Sender): Click **Start a Transfer**. Notice the prominent 6-character code (e.g. `7K2-PQX`).
+2. On **Computer 2** (Receiver): Go to `http://<sender-ip>:5000` (or the public domain), type the code in the **Join a Transfer** input, and press Enter.
+3. Both computers are now connected to the exact same isolated session.
+4. Drag and drop files to exchange them instantly.
+
+#### C. Ending Sessions
+- Click **End Session** to immediately wipe all uploaded files from disk and invalidate the join code.
+- Or simply wait for the countdown timer to expire (default 5 minutes).
+
+---
+
+## Running Automated Tests
+
+Run the comprehensive unit and integration test suite:
+
+```bash
+python -m unittest test_app.py -v
+```
+
+The test suite validates:
+- `POST /join` with valid short code redirects to `/s/<session_id>`
+- `POST /join` with invalid code renders inline error
+- `POST /join` with expired code produces indistinguishable error without leaking state
+- Rate limiting on `/join` (10 attempts/minute per IP)
+- Unique short code generation across sessions
+- File upload, download, and in-memory zip archive generation
+- Path traversal defense
+- Sweeper session cleanup and disk directory deletion
+- Platform health check (`/healthz`)

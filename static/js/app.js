@@ -43,6 +43,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const endSessionBtn = document.getElementById('endSessionBtn');
   const copyLinkBtn = document.getElementById('copyLinkBtn');
   const sessionUrlInput = document.getElementById('sessionUrlInput');
+  const copyCodeBtn = document.getElementById('copyCodeBtn');
+  const shortCodeDisplay = document.getElementById('shortCodeDisplay');
   const toastContainer = document.getElementById('toastContainer');
   const qrModalBackdrop = document.getElementById('qrModalBackdrop');
   const qrThumbnail = document.getElementById('qrThumbnail');
@@ -197,6 +199,24 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionUrlInput.select();
         document.execCommand('copy');
         showToast("Link copied!", "success");
+      }
+    });
+  }
+
+  if (copyCodeBtn && shortCodeDisplay) {
+    copyCodeBtn.addEventListener('click', async () => {
+      const codeText = shortCodeDisplay.textContent.trim();
+      try {
+        await navigator.clipboard.writeText(codeText);
+        showToast("Join code copied to clipboard!", "success");
+      } catch (err) {
+        const tempInput = document.createElement('input');
+        tempInput.value = codeText;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        showToast("Join code copied!", "success");
       }
     });
   }

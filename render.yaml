@@ -6,6 +6,7 @@ services:
     startCommand: gunicorn app:app
     plan: free
     numInstances: 1
+    healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0

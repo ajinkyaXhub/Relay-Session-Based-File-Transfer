@@ -2,10 +2,433 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=/">
-  <title>Redirecting to New Transfer...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Relay — Fast, Session-Isolated File Transfer</title>
+  <meta name="description" content="Secure, ephemeral peer-to-peer file transfer over Wi-Fi and web with complete per-transfer session isolation.">
+  <meta name="theme-color" content="#070b14">
+
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="icon" type="image/png" href="/static/new%20logo.png">
+  <link rel="shortcut icon" href="/static/new%20logo.png">
+  <link rel="apple-touch-icon" href="/static/new%20logo.png">
+  <link rel="stylesheet" href="/static/css/style.css?v=2.4">
 </head>
 <body>
-  <p>Starting a new secure file transfer session. <a href="/">Click here if not redirected</a>.</p>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <a href="/" class="brand" title="Relay Home">
+      <div class="brand-icon">
+        <img src="/static/new%20logo.png" alt="Relay Logo" class="brand-logo-img">
+      </div>
+      <div>
+        <span class="brand-title">Relay</span>
+      </div>
+      <span class="brand-badge">Isolated Session</span>
+    </a>
+
+    <div class="nav-actions">
+      <button class="btn btn-secondary btn-sm" id="landingScannerBtn" title="Scan another device's Relay QR code">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+          <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+          <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+          <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+          <line x1="7" y1="12" x2="17" y2="12"></line>
+        </svg>
+        <span>Scan QR</span>
+      </button>
+      <a href="/new" class="btn btn-primary btn-sm" title="Start a fresh transfer session">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Start Transfer
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Landing Container -->
+  <main class="landing-container">
+
+    <!-- Hero Intro -->
+    <div class="landing-hero">
+      <h1 class="landing-title">Instant File Transfer with Total Isolation</h1>
+      <p class="landing-subtitle">
+        Share files securely between laptops, phones, and PCs without setup. Each transfer runs in its own private, self-destructing room.
+      </p>
+    </div>
+
+    <!-- Inline Error Alert (e.g. from failed join attempt) -->
+    {% if error %}
+    <div class="inline-alert-error" role="alert" id="inlineErrorBox">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Dual Action Grid: Start Transfer vs Join by Code -->
+    <div class="landing-grid">
+
+      <!-- Action Card 1: Start New Transfer -->
+      <section class="landing-card" aria-labelledby="start-transfer-title">
+        <div class="landing-card-header">
+          <div class="landing-card-icon send-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <div>
+            <h2 class="landing-card-title" id="start-transfer-title">Start a Transfer</h2>
+          </div>
+        </div>
+
+        <p class="landing-card-desc">
+          Create an isolated session. You'll get a unique 6-character code and a dynamic QR code to share with any device.
+        </p>
+
+        <div style="margin-top: auto;">
+          <a href="/new" class="btn btn-primary" id="startNewTransferBtn" style="width: 100%; padding: 13px 20px; font-size: 1rem; font-weight: 700;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Create Transfer Room
+          </a>
+
+          <div class="landing-card-features">
+            <span class="landing-feature-tag">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Isolated Folder
+            </span>
+            <span class="landing-feature-tag">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Multi-file Drag & Drop
+            </span>
+            <span class="landing-feature-tag">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Auto-destruct Timer
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Action Card 2: Join a Session with Code -->
+      <section class="landing-card" aria-labelledby="join-transfer-title">
+        <div class="landing-card-header">
+          <div class="landing-card-icon join-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+            </svg>
+          </div>
+          <div>
+            <h2 class="landing-card-title" id="join-transfer-title">Join a Transfer</h2>
+          </div>
+        </div>
+
+        <p class="landing-card-desc">
+          On another laptop, PC, or phone? Enter the sender's 6-character code below to connect to their room instantly.
+        </p>
+
+        <div style="margin-top: auto;">
+          <form action="/join" method="POST" class="join-form" id="joinSessionForm">
+            <label for="joinCodeInput" style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);">
+              Enter 6-Character Join Code
+            </label>
+            <div class="join-input-row">
+              <input
+                type="text"
+                name="code"
+                id="joinCodeInput"
+                class="join-code-input"
+                placeholder="XXX-XXX"
+                maxlength="7"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                value="{{ entered_code or '' }}"
+                aria-label="6-character join code"
+                required
+              >
+              <button type="submit" class="btn btn-primary join-submit-btn" id="joinSubmitBtn" disabled>
+                Join
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+              </button>
+            </div>
+          </form>
+
+          <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between;">
+            <button type="button" class="btn btn-secondary btn-sm" id="landingCardScanQrBtn" style="width: 100%;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                <line x1="7" y1="12" x2="17" y2="12"></line>
+              </svg>
+              Or Scan QR with Camera
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Security & Privacy Trust Bar -->
+    <div class="security-trust-bar">
+      <div class="trust-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span>Isolated Disk Storage</span>
+      </div>
+      <div class="trust-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span>Direct Wi-Fi / Web Speed</span>
+      </div>
+      <div class="trust-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+        </svg>
+        <span>Auto-Purged on Expiry</span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- QR Camera Scanner Modal -->
+  <div class="modal-backdrop" id="qrScannerModal" style="display: none;">
+    <div class="modal-content scanner-modal-card">
+      <div class="scanner-header">
+        <div class="scanner-title-group">
+          <div class="scanner-icon-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+              <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+              <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+              <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+              <line x1="7" y1="12" x2="17" y2="12"></line>
+            </svg>
+          </div>
+          <div>
+            <h3 style="font-weight: 800; color: var(--text-primary); margin: 0; font-size: 1.15rem;">Scan Transfer QR</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin: 2px 0 0 0;">Point camera at another device's Relay QR code</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeScannerModalBtn" aria-label="Close Scanner">&times;</button>
+      </div>
+
+      <div class="scanner-viewport-wrapper">
+        <video id="scannerVideo" playsinline autoplay muted class="scanner-video"></video>
+        <canvas id="scannerCanvas" style="display: none;"></canvas>
+
+        <div class="scanner-reticle" id="scannerReticle">
+          <div class="reticle-corner top-left"></div>
+          <div class="reticle-corner top-right"></div>
+          <div class="reticle-corner bottom-left"></div>
+          <div class="reticle-corner bottom-right"></div>
+          <div class="scanner-laser"></div>
+        </div>
+
+        <div class="scanner-loading-state" id="scannerLoadingState">
+          <div class="loading-spinner"></div>
+          <p id="scannerStatusText" style="margin: 0; text-align: center; max-width: 280px;">Requesting camera access...</p>
+        </div>
+      </div>
+
+      <div class="scanner-footer">
+        <p class="scanner-tip">Align the QR code within the frame to join instantly</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Root -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Client-side script for Join Code formatting, validation, and scanner -->
+  <script src="/static/js/jsqr.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const codeInput = document.getElementById('joinCodeInput');
+      const submitBtn = document.getElementById('joinSubmitBtn');
+      const joinForm = document.getElementById('joinSessionForm');
+
+      // Allowed safe alphanumeric characters (omits 0, O, 1, I, L)
+      const ALLOWED_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+
+      function cleanAndFormatCode(val) {
+        // Uppercase, strip non-allowed characters
+        let raw = '';
+        for (let ch of val.toUpperCase()) {
+          if (ALLOWED_CHARS.includes(ch)) {
+            raw += ch;
+          }
+          if (raw.length >= 6) break;
+        }
+
+        // Format as XXX-XXX if 4 or more characters
+        if (raw.length > 3) {
+          return { formatted: raw.slice(0, 3) + '-' + raw.slice(3), rawCount: raw.length };
+        }
+        return { formatted: raw, rawCount: raw.length };
+      }
+
+      function handleInputChange() {
+        if (!codeInput) return;
+        const currentPos = codeInput.selectionStart;
+        const prevLen = codeInput.value.length;
+        const { formatted, rawCount } = cleanAndFormatCode(codeInput.value);
+        
+        codeInput.value = formatted;
+        
+        // Enable submit button strictly when exactly 6 valid alphanumeric characters exist
+        if (submitBtn) {
+          submitBtn.disabled = (rawCount !== 6);
+        }
+      }
+
+      if (codeInput) {
+        codeInput.addEventListener('input', handleInputChange);
+        codeInput.addEventListener('paste', () => {
+          setTimeout(handleInputChange, 10);
+        });
+
+        // Initialize state on page load (e.g. if code was pre-filled after error)
+        handleInputChange();
+
+        // Focus join input on desktop if no error
+        if (window.innerWidth > 768 && !document.getElementById('inlineErrorBox')) {
+          codeInput.focus();
+        }
+      }
+
+      // Scanner modal logic
+      const scannerModal = document.getElementById('qrScannerModal');
+      const closeScannerBtn = document.getElementById('closeScannerModalBtn');
+      const landingScannerBtn = document.getElementById('landingScannerBtn');
+      const landingCardScanQrBtn = document.getElementById('landingCardScanQrBtn');
+      const video = document.getElementById('scannerVideo');
+      const canvas = document.getElementById('scannerCanvas');
+      const statusText = document.getElementById('scannerStatusText');
+      const loadingState = document.getElementById('scannerLoadingState');
+
+      let videoStream = null;
+      let animationFrameId = null;
+
+      function openScanner() {
+        if (!scannerModal) return;
+        scannerModal.style.display = 'flex';
+        startCamera();
+      }
+
+      function closeScanner() {
+        if (!scannerModal) return;
+        scannerModal.style.display = 'none';
+        stopCamera();
+      }
+
+      async function startCamera() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          if (statusText) statusText.textContent = "Camera access not supported on this browser.";
+          return;
+        }
+        try {
+          if (loadingState) loadingState.style.display = 'flex';
+          if (statusText) statusText.textContent = "Opening camera...";
+
+          videoStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } }
+          });
+          video.srcObject = videoStream;
+          video.setAttribute("playsinline", true);
+          video.play();
+          requestAnimationFrame(tickScan);
+        } catch (err) {
+          if (statusText) statusText.textContent = "Could not access camera. Please allow camera permissions.";
+        }
+      }
+
+      function stopCamera() {
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
+        }
+        if (videoStream) {
+          videoStream.getTracks().forEach(track => track.stop());
+          videoStream = null;
+        }
+        if (video) video.srcObject = null;
+      }
+
+      function tickScan() {
+        if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+          if (loadingState) loadingState.style.display = 'none';
+
+          if (canvas) {
+            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            if (window.jsQR) {
+              const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert"
+              });
+
+              if (code && code.data) {
+                // If scanned code is a Relay session URL or join code, navigate to it
+                try {
+                  const url = new URL(code.data, window.location.origin);
+                  if (url.pathname.startsWith('/s/')) {
+                    stopCamera();
+                    window.location.href = url.href;
+                    return;
+                  }
+                } catch (e) {
+                  // If raw code, put into input
+                  const { formatted, rawCount } = cleanAndFormatCode(code.data);
+                  if (rawCount === 6) {
+                    stopCamera();
+                    closeScanner();
+                    codeInput.value = formatted;
+                    handleInputChange();
+                    joinForm.submit();
+                    return;
+                  }
+                }
+              }
+            }
+          }
+        }
+        if (scannerModal && scannerModal.style.display !== 'none') {
+          animationFrameId = requestAnimationFrame(tickScan);
+        }
+      }
+
+      if (landingScannerBtn) landingScannerBtn.addEventListener('click', openScanner);
+      if (landingCardScanQrBtn) landingCardScanQrBtn.addEventListener('click', openScanner);
+      if (closeScannerBtn) closeScannerBtn.addEventListener('click', closeScanner);
+      if (scannerModal) {
+        scannerModal.addEventListener('click', (e) => {
+          if (e.target === scannerModal) closeScanner();
+        });
+      }
+    });
+  </script>
 </body>
 </html>
