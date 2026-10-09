@@ -32,7 +32,16 @@ def get_env_int(key, default):
         return default
 
 # App Configuration
-app = Flask(__name__)
+if getattr(sys, "frozen", False):
+    BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BASE_DIR, "templates"),
+    static_folder=os.path.join(BASE_DIR, "static"),
+)
 secret_env = os.getenv("SECRET_KEY")
 app.secret_key = secret_env.strip() if secret_env and secret_env.strip() else secrets.token_hex(32)
 
@@ -408,6 +417,20 @@ def healthz():
 def favicon():
     """Serves the new logo favicon."""
     return send_file(os.path.join(app.root_path, "static", "favicon.ico"), mimetype="image/x-icon")
+
+@app.route("/download/windows")
+@app.route("/download-app")
+def download_windows():
+    """Serves official Windows App Installer (.exe)."""
+    installer_path = os.path.join(app.static_folder, "downloads", "Relay-Setup.exe")
+    if not os.path.exists(installer_path):
+        abort(404, description="Windows installer is not packaged yet.")
+    return send_file(
+        installer_path,
+        as_attachment=True,
+        download_name="Relay-Setup.exe",
+        mimetype="application/vnd.microsoft.portable-executable"
+    )
 
 @app.route("/s/<session_id>")
 def session_view(session_id):
