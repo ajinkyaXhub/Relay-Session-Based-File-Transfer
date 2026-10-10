@@ -9,7 +9,17 @@
   <link rel="icon" type="image/png" href="/static/new%20logo.png">
   <link rel="shortcut icon" href="/static/new%20logo.png">
   <link rel="apple-touch-icon" href="/static/new%20logo.png">
-  <link rel="stylesheet" href="/static/css/style.css?v=2.3">
+  <link rel="stylesheet" href="/static/css/style.css?v=2.4">
+  <script>
+    if (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: minimal-ui)').matches ||
+      window.navigator.standalone === true ||
+      localStorage.getItem('relay_app_installed') === '1'
+    ) {
+      document.documentElement.classList.add('app-installed');
+    }
+  </script>
   <style>
     .expired-container {
       max-width: 520px;
@@ -115,7 +125,7 @@
     </div>
   </div>
 
-  <!-- Install App Modal (Windows Installer & PWA) -->
+  <!-- Install App Modal (Web App PWA) -->
   <div id="pwaInstallModal" class="pwa-install-modal" style="display: none;">
     <div class="pwa-install-card glass-card">
       <button class="pwa-close-btn" id="pwaCloseBtn" aria-label="Close installation prompt">&times;</button>
@@ -127,53 +137,18 @@
         <div class="pwa-header-text">
           <div class="pwa-title-row">
             <h3 class="pwa-title">Install Relay</h3>
-            <span class="pwa-badge" id="installPlatformBadge">Windows App</span>
+            <span class="pwa-badge" id="installPlatformBadge">Web App</span>
           </div>
           <p class="pwa-subtitle" id="pwaInstallDesc">Get Relay for quick, seamless file transfers directly from your desktop or home screen.</p>
         </div>
       </div>
 
       <div class="install-options-group">
-        <!-- Windows Official App Installer Card -->
-        <div class="install-option-card win-installer-card" id="winInstallerSection">
-          <div class="install-option-header">
-            <div class="install-platform-icon win-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.899"/>
-              </svg>
-            </div>
-            <div class="install-platform-info">
-              <div class="install-platform-title-row">
-                <span class="install-platform-title">Windows App Installer</span>
-                <span class="badge-recommended">Recommended</span>
-              </div>
-              <p class="install-platform-desc">
-                Official Windows setup (.exe) with desktop & start menu shortcuts, offline LAN support, and background tray.
-              </p>
-              <div class="install-platform-pills">
-                <span class="install-pill">✓ 64-bit Windows</span>
-                <span class="install-pill">✓ Desktop Shortcut</span>
-                <span class="install-pill">✓ LAN Transfer</span>
-              </div>
-            </div>
-          </div>
-          <div class="install-action-row">
-            <a href="/download/windows" class="btn btn-primary btn-sm install-download-btn" id="downloadWindowsBtn">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              <span>Download Windows Installer (.exe)</span>
-            </a>
-          </div>
-        </div>
-
         <!-- Web App (PWA) Option -->
-        <div class="install-option-card" id="pwaSection">
+        <div class="install-option-card highlight" id="pwaSection">
           <div class="install-option-header">
             <div class="install-platform-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="2" y1="12" x2="22" y2="12"></line>
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
@@ -181,21 +156,27 @@
             </div>
             <div class="install-platform-info">
               <div class="install-platform-title-row">
-                <span class="install-platform-title">Web App (PWA)</span>
+                <span class="install-platform-title">Web App</span>
+                <span class="badge-recommended">Instant & Fast</span>
               </div>
               <p class="install-platform-desc">
-                Instant browser installation without downloading setup files.
+                Install Relay directly on your device. Works seamlessly on Windows, Android & iOS without any setup file.
               </p>
+              <div class="install-platform-pills">
+                <span class="install-pill">✓ Instant Launch</span>
+                <span class="install-pill">✓ Home Screen & Desktop</span>
+                <span class="install-pill">✓ Local LAN Transfer</span>
+              </div>
             </div>
           </div>
           <div class="install-action-row">
-            <button class="btn btn-secondary btn-sm" id="pwaTriggerInstallBtn" style="width: 100%;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <button class="btn btn-primary btn-sm" id="pwaTriggerInstallBtn" style="width: 100%;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7 10 12 15 17 10"></polyline>
                 <line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
-              <span id="pwaInstallBtnText">Install as Web App</span>
+              <span id="pwaInstallBtnText">Install Web App</span>
             </button>
           </div>
         </div>

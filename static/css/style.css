@@ -922,6 +922,24 @@ body {
   transform: scale(1.1);
 }
 
+/* Hide install button and prompt once app is installed or running in standalone mode */
+html.app-installed .nav-install-btn,
+html.app-installed #pwaInstallModal,
+body.app-installed .nav-install-btn,
+body.app-installed #pwaInstallModal,
+@media all and (display-mode: standalone) {
+  .nav-install-btn,
+  #pwaInstallModal {
+    display: none !important;
+  }
+}
+@media all and (display-mode: minimal-ui) {
+  .nav-install-btn,
+  #pwaInstallModal {
+    display: none !important;
+  }
+}
+
 /* ---------- INSTALL POPUP MODAL & OPTIONS ---------- */
 .pwa-install-modal {
   position: fixed;
